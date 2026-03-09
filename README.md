@@ -9,7 +9,7 @@ A FastAPI + React application that helps oncology sales reps prep for physician 
 
 ### Live demo
 
-- **App**: [https://web-production-2b326.up.railway.app](https://tempus-sales-copilot.up.railway.app)
+- **App**: https://tempus-sales-copilot.up.railway.app
 
 ### Tech Stack
 

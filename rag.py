@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 from llama_index.core import Settings, VectorStoreIndex
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.schema import Document, NodeWithScore
+from llama_index.core.vector_stores import MetadataFilter, MetadataFilters, FilterOperator
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.anthropic import Anthropic
 from llama_index.llms.openai import OpenAI
@@ -141,18 +142,20 @@ def _row_to_profile(row: pd.Series) -> PhysicianProfile:
 def _retrieve_crm_for_physician(
     index: VectorStoreIndex, physician_name: str, physician_id: Optional[str]
 ) -> List[NodeWithScore]:
-    """Retrieve CRM notes nodes for this physician (by metadata filter + text)."""
-    retriever = index.as_retriever(similarity_top_k=3)
-    # Use a query that combines name and optional id for better match.
+    """Retrieve CRM notes nodes for this physician (strictly by physician_id)."""
+    filter_list = [
+        MetadataFilter(key="source", operator=FilterOperator.EQ, value="crm_notes"),
+    ]
+    if physician_id and str(physician_id).strip():
+        filter_list.append(
+            MetadataFilter(key="physician_id", operator=FilterOperator.EQ, value=str(physician_id))
+        )
+    filters = MetadataFilters(filters=filter_list)
+    retriever = index.as_retriever(similarity_top_k=5, filters=filters)
     query = f"CRM history and objections for {physician_name}"
     if physician_id:
-        query += f" ({physician_id})"
-    nodes = retriever.retrieve(query)
-    # Filter down to CRM sources if metadata available
-    filtered = [
-        n for n in nodes if n.node.metadata.get("source") == "crm_notes"  # type: ignore[attr-defined]
-    ]
-    return filtered or nodes
+        query += f" {physician_id}"
+    return retriever.retrieve(query)
 
 
 def _retrieve_kb_chunks(
@@ -239,13 +242,13 @@ Field requirements:
   - Mention only Tempus tests in PRODUCT KNOWLEDGE (e.g., xT, xF, xR, xE).
   - If [CRM HISTORY] says no prior notes, treat as cold outreach.
 - "objection_handler": 2–3 sentences.
-  - Address the objection(s) listed in [OBJECTIONS FROM CRM HISTORY] (i.e. the OBJECTIONS from the CRM data above).
-  - First restate their concern, then respond with concrete metrics from PRODUCT KNOWLEDGE only.
-- "priority_rationale": 1–2 sentences. Volume, Tempus usage, priority_score.
+  - Address the objection(s) in [OBJECTIONS FROM CRM HISTORY]. Your response must match the concern(s) raised there — use PRODUCT KNOWLEDGE to respond to whatever theme or themes appear. Do not substitute a different concern or default to a single theme. Restate their concern, then respond with concrete metrics from PRODUCT KNOWLEDGE only.
+- "priority_rationale": 1–2 sentences. Generate from physician context: volume, Tempus usage, priority_score. Do not copy from CRM — derive this yourself from [PHYSICIAN CONTEXT].
 
 Rules:
 - Only use metrics and tests from PRODUCT KNOWLEDGE.
 - Do NOT mention TAT or Epic unless it appears in [OBJECTIONS FROM CRM HISTORY] or [CRM HISTORY].
+- Objection handler must reflect the objections in [OBJECTIONS FROM CRM HISTORY]. Vary the handler by what is stated there; do not use the same response for every physician.
 - Tone: professional, peer-to-peer.
 - Respond ONLY with valid JSON, no extra text.
 """
