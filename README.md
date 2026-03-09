@@ -9,7 +9,7 @@ A FastAPI + React application that helps oncology sales reps prep for physician 
 
 ### Live demo
 
-- **App**: https://web-production-2b326.up.railway.app
+- **App**: [https://web-production-2b326.up.railway.app](https://tempus-sales-copilot.up.railway.app)
 
 ### Tech Stack
 
@@ -29,18 +29,14 @@ A FastAPI + React application that helps oncology sales reps prep for physician 
   - Lists providers ranked by `priority_score`
   - Visual priority indicator (green for high priority)
   - Filters by city / Tempus user status and search
-
 - **Brief generation**
   - Generates a structured brief (meeting script, objection handler, priority rationale)
   - Grounds outputs in market data + CRM notes + KB retrieval
-
 - **Chat coaching**
   - Lets a rep ask follow-ups using the generated brief context
-
 - **Pre‑call intel**
   - Runs web search and synthesizes recent updates into sections (drug updates, publications, Tempus updates, competitive intel)
   - Shows **clickable source links** for each item
-
 - **Outcome logging**
   - Logs meeting outcomes and updates priority score over time
 
@@ -55,60 +51,42 @@ A FastAPI + React application that helps oncology sales reps prep for physician 
 
 ---
 
-## Local development 
+## Local development
 
 ### Backend
 
 1. Create and activate a virtual environment
-
-   ```bash
+  ```bash
    cd tempus-copilot-backend
    python -m venv .venv
    source .venv/bin/activate  # on Windows: .venv\\Scripts\\activate
-   ```
-
+  ```
 2. Install dependencies
-
-   ```bash
+  ```bash
    pip install -r requirements.txt
-   ```
-
+  ```
 3. Configure environment variables
-
-   ```bash
+  ```bash
    cp .env.example .env
-   ```
-
+  ```
    Then edit `.env` and fill in:
-
-   - `OPENAI_API_KEY` — required if using OpenAI for embeddings/LLM
-   - `ANTHROPIC_API_KEY` — optional; if set, Claude (`claude-sonnet-4-20250514`) is used as the LLM
-   - `CHROMA_PERSIST_DIR` — path for persistent ChromaDB (default: `./chroma_db`)
-   - `PORT` — FastAPI port (default: `8000`)
-
+  - `OPENAI_API_KEY` — required if using OpenAI for embeddings/LLM
+  - `ANTHROPIC_API_KEY` — optional; if set, Claude (`claude-sonnet-4-20250514`) is used as the LLM
+  - `CHROMA_PERSIST_DIR` — path for persistent ChromaDB (default: `./chroma_db`)
+  - `PORT` — FastAPI port (default: `8000`)
 4. Run ingestion (first run only)
-
-   ```bash
+  ```bash
    python ingest.py
-   ```
-
+  ```
    This will:
-
-   - Load `data/market_data.csv`, `data/crm_notes.txt`, and `data/tempus_kb.md`
-   - Build a persistent ChromaDB index at `CHROMA_PERSIST_DIR`
-
+  - Load `data/market_data.csv`, `data/crm_notes.txt`, and `data/tempus_kb.md`
+  - Build a persistent ChromaDB index at `CHROMA_PERSIST_DIR`
    To force a full re-ingest (e.g., after editing data files):
-
-   ```bash
-   python ingest.py --force
-   ```
-
 5. Start the API server
-
-   ```bash
+  ```bash
    uvicorn main:app --reload
-   ```
-
+  ```
    The server will run on `http://localhost:${PORT}` (default `http://localhost:8000`).
 
 ---
+
