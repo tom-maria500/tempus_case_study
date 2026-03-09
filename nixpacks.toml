@@ -1,0 +1,18 @@
+# Railway / Nixpacks config: build backend + frontend, serve from single app
+[phases.setup]
+nixPkgs = ["python312", "nodejs-20_x"]
+
+[phases.install]
+cmds = [
+  "pip install -r requirements.txt",
+  "npm ci"
+]
+
+[phases.build]
+cmds = [
+  "VITE_API_URL= npm run build",
+  "python ingest.py --force"
+]
+
+[start]
+cmd = "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"
