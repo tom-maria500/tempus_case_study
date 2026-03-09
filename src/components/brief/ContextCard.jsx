@@ -14,9 +14,17 @@ export function ContextCard({ physician, priorityRationale }) {
     last_contact_date
   } = physician;
 
-  const lastContact = last_contact_date
-    ? new Date(last_contact_date).toLocaleDateString()
-    : 'No prior contact';
+  let lastContact = 'No prior contact';
+  if (last_contact_date) {
+    try {
+      const d = new Date(last_contact_date);
+      if (!Number.isNaN(d.getTime())) {
+        lastContact = d.toLocaleDateString();
+      }
+    } catch {
+      // keep default label
+    }
+  }
 
   const focusArea = (primary_cancer_focus || '').toString().trim();
   const rationale = priorityRationale?.trim?.();

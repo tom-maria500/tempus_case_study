@@ -26,13 +26,22 @@ export function ProviderRow({ provider, onClick, onGenerateBrief }) {
     onGenerateBrief?.(provider);
   };
 
-  const lastContactLabel = last_contact_date
-    ? new Date(last_contact_date).toLocaleDateString(undefined, {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-      })
-    : 'No prior contact';
+  let lastContactLabel = 'No prior contact';
+  if (last_contact_date) {
+    try {
+      const d = new Date(last_contact_date);
+      // Guard against "Invalid Date" (some runtimes throw on formatting).
+      if (!Number.isNaN(d.getTime())) {
+        lastContactLabel = d.toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
+        });
+      }
+    } catch {
+      // keep default label
+    }
+  }
 
   return (
     <tr

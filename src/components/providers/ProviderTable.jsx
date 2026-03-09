@@ -89,7 +89,7 @@ export function ProviderTable({ onSelectProvider, onGenerateBrief, searchQuery =
           <div className="p-6">
             <EmptyState
               title="Unable to load providers"
-              description={`${error}. Check that the FastAPI backend is running on http://localhost:8000.`}
+              description={`${error}. Check that the backend API is reachable and VITE_API_URL (if set) points to it.`}
             />
           </div>
         ) : filteredProviders.length === 0 && !isLoading ? (

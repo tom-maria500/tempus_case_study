@@ -1,4 +1,10 @@
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+// If VITE_API_URL is set, always use it.
+// Otherwise:
+// - in dev, default to local backend
+// - in production (single-service deploy), default to same-origin
+const BASE_URL =
+  import.meta.env.VITE_API_URL ??
+  (import.meta.env.DEV ? 'http://localhost:8000' : '');
 
 export async function getProviders(city = null, limit = 15) {
   const params = new URLSearchParams();
