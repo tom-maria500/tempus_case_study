@@ -1,6 +1,15 @@
-## Tempus Sales Copilot — Backend & RAG Pipeline
+## Tempus Sales Copilot
 
-FastAPI backend and RAG pipeline to help oncology sales reps generate personalized briefs for physician meetings using mock market data, CRM notes, and a Tempus product knowledge base.
+A FastAPI + React application that helps oncology sales reps prep for physician meetings by combining:
+
+- **Mock market data** (provider attributes and priority scoring)
+- **Mock CRM notes** (rep notes + objections + interests)
+- **Tempus product knowledge base** (for grounded objection handling)
+- **Pre‑call intel** (recent web updates with source links)
+
+### Live demo
+
+- **App**: `<PASTE_DEPLOYED_APP_URL_HERE>`
 
 ### Tech Stack
 
@@ -14,9 +23,43 @@ FastAPI backend and RAG pipeline to help oncology sales reps generate personaliz
 
 ---
 
-## Setup
+## What the app does
 
-1. **Create and activate a virtual environment (recommended)**
+- **Providers**
+  - Lists providers ranked by `priority_score`
+  - Visual priority indicator (green for high priority)
+  - Filters by city / Tempus user status and search
+
+- **Brief generation**
+  - Generates a structured brief (meeting script, objection handler, priority rationale)
+  - Grounds outputs in market data + CRM notes + KB retrieval
+
+- **Chat coaching**
+  - Lets a rep ask follow-ups using the generated brief context
+
+- **Pre‑call intel**
+  - Runs web search and synthesizes recent updates into sections (drug updates, publications, Tempus updates, competitive intel)
+  - Shows **clickable source links** for each item
+
+- **Outcome logging**
+  - Logs meeting outcomes and updates priority score over time
+
+---
+
+## How it works (high level)
+
+- **Indexing (ChromaDB + embeddings)**: `ingest.py` loads `data/market_data.csv`, `data/crm_notes.txt`, and `data/tempus_kb.md` into a vector store.
+- **RAG brief generation**: `rag.py` retrieves relevant CRM + KB context and calls an LLM to return structured JSON.
+- **Intel synthesis**: `intel.py` runs web search and asks an LLM to produce structured intel; source URLs come from the search results.
+- **API**: `main.py` exposes endpoints used by the React UI.
+
+---
+
+## Local development (optional)
+
+### Backend
+
+1. Create and activate a virtual environment
 
    ```bash
    cd tempus-copilot-backend
@@ -24,13 +67,13 @@ FastAPI backend and RAG pipeline to help oncology sales reps generate personaliz
    source .venv/bin/activate  # on Windows: .venv\\Scripts\\activate
    ```
 
-2. **Install dependencies**
+2. Install dependencies
 
    ```bash
    pip install -r requirements.txt
    ```
 
-3. **Configure environment variables**
+3. Configure environment variables
 
    ```bash
    cp .env.example .env
@@ -43,13 +86,7 @@ FastAPI backend and RAG pipeline to help oncology sales reps generate personaliz
    - `CHROMA_PERSIST_DIR` — path for persistent ChromaDB (default: `./chroma_db`)
    - `PORT` — FastAPI port (default: `8000`)
 
-   **Jira integration (Action Items):**
-   - `JIRA_BASE_URL` — e.g. `https://your-org.atlassian.net`
-   - `JIRA_EMAIL` — your Atlassian account email
-   - `JIRA_API_TOKEN` — create at [id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens)
-   - `JIRA_PROJECT_KEY` — existing project key (e.g. `SALES`). Ensure the project has the "Task" issue type enabled.
-
-4. **Run ingestion (first run only)**
+4. Run ingestion (first run only)
 
    ```bash
    python ingest.py
@@ -66,7 +103,7 @@ FastAPI backend and RAG pipeline to help oncology sales reps generate personaliz
    python ingest.py --force
    ```
 
-5. **Start the API server**
+5. Start the API server
 
    ```bash
    uvicorn main:app --reload
@@ -76,7 +113,7 @@ FastAPI backend and RAG pipeline to help oncology sales reps generate personaliz
 
 ---
 
-## API Endpoints
+## API Endpoints (backend)
 
 ### `GET /health`
 
@@ -188,6 +225,28 @@ python ingest.py --force
 This will recreate the ChromaDB index at `CHROMA_PERSIST_DIR`.
 
 ---
+
+## Frontend UI
+
+This repo also includes a small React/Vite frontend under `src/` that calls the FastAPI backend:
+
+- `src/App.jsx` plus components under `src/components/**`
+- API wrapper in `src/lib/api.js` (respects `VITE_API_URL`, falls back to same-origin)
+
+### Local frontend dev
+
+```bash
+npm install
+npm run dev
+```
+
+By default the frontend expects the backend on `http://localhost:8000`. You can override this with:
+
+```bash
+VITE_API_URL=http://localhost:8000 npm run dev
+```
+
+Then open the printed Vite dev URL (usually `http://localhost:5173`).
 
 ## Notes
 
