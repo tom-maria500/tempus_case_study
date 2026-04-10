@@ -96,6 +96,14 @@ class IntelRequest(BaseModel):
 
     physician_id: str
     days_lookback: int = 90
+    start_date: Optional[date] = Field(
+        default=None,
+        description="Optional explicit start date (YYYY-MM-DD) for intel collection window.",
+    )
+    end_date: Optional[date] = Field(
+        default=None,
+        description="Optional explicit end date (YYYY-MM-DD) for intel collection window.",
+    )
 
 
 class IntelItem(BaseModel):
@@ -114,6 +122,14 @@ class IntelResponse(BaseModel):
     physician_name: str
     last_contact_date: str
     days_since_contact: int
+    search_window_start: str = Field(
+        default="",
+        description="Start date (YYYY-MM-DD) of the web search window used for this response.",
+    )
+    search_window_end: str = Field(
+        default="",
+        description="End date (YYYY-MM-DD) of the web search window used for this response.",
+    )
     drug_updates: list[IntelItem] = Field(default_factory=list)
     publications: list[IntelItem] = Field(default_factory=list)
     tempus_updates: list[IntelItem] = Field(default_factory=list)

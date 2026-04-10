@@ -27,7 +27,7 @@ export function StatusBadge({ type }) {
   return (
     <span
       className={[
-        'inline-flex items-center gap-1.5 rounded-badge px-2.5 py-1 text-[11px] font-medium',
+        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-badge px-2.5 py-1 text-[11px] font-medium',
         cfg.bg,
         cfg.text
       ].join(' ')}

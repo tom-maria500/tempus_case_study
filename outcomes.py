@@ -19,6 +19,7 @@ from rag import (
     _load_market_dataframe,
 )
 from ingest import _parse_crm_block
+from priority_scoring import compute_base_score_series, row_effective_priority
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
@@ -91,14 +92,16 @@ def _append_meeting_log_to_crm(physician_id: str, req: OutcomeRequest) -> None:
     path.write_text("---".join(blocks), encoding="utf-8")
 
 
-def _update_market_csv(physician_id: str, new_score: float) -> None:
-    """Update priority_score for physician in market_data.csv."""
+def _update_market_adjustment(physician_id: str, new_adjustment: float) -> None:
+    """Update priority_adjustment (delta on top of formula base) in market_data.csv."""
     path = DATA_DIR / "market_data.csv"
     df = pd.read_csv(path)
+    if "priority_adjustment" not in df.columns:
+        df["priority_adjustment"] = 0.0
     mask = df["physician_id"].astype(str) == str(physician_id)
     if not mask.any():
         raise ValueError(f"Physician {physician_id} not found in market_data")
-    df.loc[mask, "priority_score"] = new_score
+    df.loc[mask, "priority_adjustment"] = round(float(new_adjustment), 1)
     df.to_csv(path, index=False)
 
 
@@ -115,10 +118,12 @@ def _reindex_physician_in_chromadb(physician_id: str) -> None:
         if str(bid) != str(physician_id):
             continue
         name = parsed.get("name", "Unknown")
+        objection_tags = str(parsed.get("objection_tags", "")).strip()
         text = (
             f"CRM notes for {name} ({physician_id}). "
             f"Date: {parsed.get('date','N/A')}. "
             f"Rep notes: {parsed.get('rep_notes','')} "
+            f"Objection tags: {objection_tags}. "
             f"Objections: {parsed.get('objections','')} "
             f"Interests: {parsed.get('interests','')} "
             f"Next steps: {parsed.get('next_steps','')}"
@@ -139,6 +144,7 @@ def _reindex_physician_in_chromadb(physician_id: str) -> None:
             "physician_id": physician_id,
             "name": name,
             "objections": parsed.get("objections", ""),
+            "objection_tags": objection_tags,
             "interests": parsed.get("interests", ""),
         }
         from llama_index.core import Document
@@ -181,18 +187,23 @@ Respond with JSON only: {{"response": "your one-sentence suggestion"}}"""
 def log_outcome(request: OutcomeRequest) -> OutcomeResponse:
     """Log meeting outcome, update CRM, recalc priority, re-index, suggest action."""
     df = _load_market_dataframe()
+    if "priority_adjustment" not in df.columns:
+        df["priority_adjustment"] = 0.0
     row = _find_physician_row(df, None, request.physician_id)
     if row is None:
         raise ValueError(f"Physician {request.physician_id} not found")
 
-    current_score = float(row["priority_score"])
-    new_score = recalculate_priority(
-        current_score, request.outcome, request.main_concern
+    base_series = compute_base_score_series(df)
+    current_total = row_effective_priority(row, df, base_series)
+    base = float(base_series.loc[row.name])
+    new_total = recalculate_priority(
+        current_total, request.outcome, request.main_concern
     )
-    score_delta = round(new_score - current_score, 1)
+    score_delta = round(new_total - current_total, 1)
+    new_adjustment = round(new_total - base, 1)
 
     _append_meeting_log_to_crm(request.physician_id, request)
-    _update_market_csv(request.physician_id, new_score)
+    _update_market_adjustment(request.physician_id, new_adjustment)
     _reindex_physician_in_chromadb(request.physician_id)
 
     cancer = str(row.get("primary_cancer_focus", ""))
@@ -202,12 +213,12 @@ def log_outcome(request: OutcomeRequest) -> OutcomeResponse:
         main_concern=request.main_concern,
         next_step=request.next_step,
         cancer_focus=cancer,
-        new_score=new_score,
+        new_score=new_total,
     )
 
     return OutcomeResponse(
         physician_id=request.physician_id,
-        new_priority_score=new_score,
+        new_priority_score=new_total,
         score_delta=score_delta,
         suggested_next_action=suggested,
         updated_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -222,8 +233,13 @@ def get_outcome_history(physician_id: str) -> list[OutcomeLog]:
     logs: list[OutcomeLog] = []
 
     df = _load_market_dataframe()
+    if "priority_adjustment" not in df.columns:
+        df["priority_adjustment"] = 0.0
     row = _find_physician_row(df, None, physician_id)
-    current_score = float(row["priority_score"]) if row is not None else 0.0
+    base_series = compute_base_score_series(df)
+    current_score = (
+        row_effective_priority(row, df, base_series) if row is not None else 0.0
+    )
 
     for block in blocks:
         parsed = _parse_crm_block(block)

@@ -4,22 +4,13 @@ SPECIALTY: Medical Oncology
 INSTITUTION: Northwestern Memorial Hospital
 CITY: Chicago, IL
 REP_NOTES: High-volume academic practice with an estimated 420 advanced NSCLC and colorectal patients per year. Strong interest in comprehensive genomic profiling and consolidating tissue + liquid testing into a single workflow. Asked detailed questions about Epic ordering, structured result fields, and how easily fellows can interpret reports during tumor board. Dr. Chen runs a weekly multidisciplinary tumor board attended by thoracic surgery, radiology, and pathology — she emphasized that reports need to be readable by non-oncologists in that setting. She is also training two fellows and wants any new testing workflow to be teachable without extensive onboarding. Has evaluated one other CGP vendor in the past 18 months but did not commit.
-OBJECTIONS: Concerned about turnaround time for solid tumor panels — needs results within 10 days to influence first-line decisions. Also raised cost and prior auth burden on her staff; wants clarity on coverage for large panels and support for appeals. Expressed concern that if TAT slips even occasionally, she loses confidence in building a workflow around the test.
+OBJECTION_TAGS: turnaround_time, cost_reimbursement
+OBJECTIONS:
+- [turnaround_time] Needs solid tumor panel results within 10 days to influence first-line decisions; loses confidence building a workflow if turnaround slips even occasionally.
+- [cost_reimbursement] Prior auth burden on staff; wants clarity on coverage for large panels and support for appeals.
 INTERESTS: Responded positively to TIME Trial real-world data, especially NSCLC response rates when comprehensive profiling is done up front. Very interested in TMB/PD-L1 being on the same report and seeing a demo of the physician portal and trial-matching view. Also lit up when shown an example report with clinical trial matches pre-populated — said "that would save us 45 minutes per case."
 PRIORITY_RATIONALE: High-volume non-user with strong product fit across NSCLC and CRC. Trial-matching and Epic integration are the closing levers. TAT transparency is the main gating concern.
 NEXT_STEPS: Send NSCLC-focused TAT benchmarks and case studies. Include example xT report with TMB/PD-L1, plus Epic screenshot showing structured result fields. Schedule 30-min tumor board-focused demo for early December.
-MEETING_LOG: 2026-03-08
-OUTCOME: positive_followup
-MAIN_CONCERN: turnaround_time
-NEXT_STEPS: Send report
-MEETING_LOG: 2026-03-08
-OUTCOME: no_show
-MAIN_CONCERN: no_concern
-NEXT_STEPS: Reschedule call
-MEETING_LOG: 2026-03-09
-OUTCOME: no_show
-MAIN_CONCERN: cost_reimbursement
-NEXT_STEPS: Reschedule call
 ---
 
 PHYSICIAN: Dr. Michael Torres | PHY002
@@ -28,7 +19,9 @@ SPECIALTY: Thoracic Oncology
 INSTITUTION: MD Anderson Cancer Center
 CITY: Houston, TX
 REP_NOTES: Existing Tempus power user in a thoracic-heavy center with approximately 680 thoracic patients per year. Uses xT for most solid tumor profiling and has steadily increased xF liquid biopsy orders over the last 3 quarters for resistance and MRD use cases. Dr. Torres is one of the highest-volume Tempus users in the Houston territory and regularly advocates for the platform internally. He participates in a thoracic oncology consortium at MD Anderson and has informally recommended Tempus to two colleagues. His main ask at this meeting was continuity — he wants to feel like he has a dedicated contact rather than being rotated through new reps.
-OBJECTIONS: None specific to Tempus — discussion focused on renewal and optimizing workflows. Did note occasional EMR integration hiccups when pulling structured results into progress notes, which slows down clinic documentation. Flagged one instance where a structured TMB field did not populate correctly in Epic, requiring manual entry.
+OBJECTION_TAGS: emr_integration
+OBJECTIONS:
+- [emr_integration] Occasional Epic/EMR hiccups when pulling structured results into progress notes; one TMB field did not populate correctly in Epic, requiring manual entry.
 INTERESTS: Very interested in upcoming xR RNA fusion expansion and any new IO-related biomarkers in the pipeline. Wants to standardize on a single vendor for tissue + liquid + RNA to simplify tumor board prep and protocol design. Asked specifically whether Tempus One will eventually surface trial matches directly in the Epic workflow.
 PRIORITY_RATIONALE: Existing power user with high volume and strong loyalty. Retention and upsell to xR is the priority. EMR integration fix is a quick win that strengthens the relationship.
 NEXT_STEPS: Share detailed xR one-pager with fusion examples relevant to NSCLC. Connect CSM and Epic IT contact to review integration tickets and confirm timeline. Offer a combined tissue + liquid + RNA case review session for fellows.
@@ -40,7 +33,10 @@ SPECIALTY: GI Oncology
 INSTITUTION: Massachusetts General Hospital
 CITY: Boston, MA
 REP_NOTES: GI-focused oncologist at a large academic center with approximately 310 GI oncology patients per year — primarily colorectal and pancreatic. Currently sends most solid tumors to Foundation Medicine and has an established internal ordering workflow built around their portal. Her coordinator manages the ordering process end-to-end; any switch would require retraining that coordinator. Dr. Walsh acknowledged the workflow lock-in but was more open than expected when reviewing Tempus's colorectal-specific biomarker report layout. She has heard of Tempus through a colleague at Brigham and Women's but had not previously engaged with a rep.
-OBJECTIONS: "We've been with Foundation for years — switching would be disruptive." Concerned about payor coverage and whether Tempus is in-network for her top commercial and Medicare Advantage plans. Also worried about staff learning a second portal and additional logins. Asked specifically what happens to her existing Foundation reports if she switches mid-patient — wants continuity of interpretation.
+OBJECTION_TAGS: competitor_loyalty, cost_reimbursement
+OBJECTIONS:
+- [competitor_loyalty] Long-standing Foundation workflow; switching vendors would disrupt coordinator training, portal habits, and continuity of interpretation mid-patient.
+- [cost_reimbursement] Wants payor coverage clarity (commercial, Medicare Advantage) and confidence Tempus is in-network for top plans.
 INTERESTS: Engaged when reviewing colorectal-specific biomarkers (MSI/dMMR, HER2 amplification, BRAF, KRAS) and how they show up in Tempus reports. Asked for specifics on sample requirements (FFPE vs. block vs. slides) and re-biopsy scenarios. Perked up when shown PurIST pancreatic subtyping algorithm — said "we don't have that with Foundation."
 PRIORITY_RATIONALE: High-value non-user at a top AMC. Foundation loyalty is real but not unbreakable. PurIST and colorectal biomarker depth are the differentiators. A limited pilot is the right wedge.
 NEXT_STEPS: Provide payor coverage summary focused on her top 3 plans and sample success rates for GI indications. Prepare a side-by-side colorectal biomarker comparison (Tempus vs. Foundation) and propose a limited pilot of 10 consecutive colorectal cases to compare experience and actionability.
@@ -52,7 +48,10 @@ SPECIALTY: Medical Oncology
 INSTITUTION: Rush University Medical Center
 CITY: Chicago, IL
 REP_NOTES: General medical oncologist with a mixed tumor panel — roughly 160 breast and 130 lung patients per year. Sees a broad range of histologies and is not subspecialty-focused, which means he relies heavily on reports that clearly guide next steps rather than raw data dumps. Mentioned that he has limited time per patient encounter and needs testing decisions to be fast and explainable to non-oncology colleagues. Currently splits testing across two vendors depending on tumor type, which he acknowledges is inefficient. Has a good relationship with a former Tempus rep who left the company; slight reset in rapport needed.
-OBJECTIONS: Cited report complexity as a concern — "My patients aren't all at academic centers. I need reports that are usable for community-level decisions." Also questioned whether comprehensive panels are overkill for earlier-stage patients and whether insurance will push back on first-line ordering.
+OBJECTION_TAGS: competitor_loyalty, cost_reimbursement
+OBJECTIONS:
+- [competitor_loyalty] Splits testing across multiple vendors; wants a simpler workflow without multi-portal fragmentation.
+- [cost_reimbursement] Questions whether insurance will push back on first-line comprehensive panel ordering for earlier-stage patients.
 INTERESTS: Interested in the clinical trial matching feature and whether it surfaces community-accessible trials, not just academic center studies. Asked about the physician portal's ability to filter results by actionability tier. Responded well to the idea of a single testing workflow across breast and lung that reduces vendor management overhead.
 PRIORITY_RATIONALE: Mid-priority non-user. High potential volume across two major indications, but needs product education and a simplified pitch. Report usability and community trial matching are the key hooks.
 NEXT_STEPS: Send mixed-histology report examples with clear actionability tiering. Follow up on community trial matching availability and confirm which trials in Chicago area are surfaced in Tempus reports. Re-establish relationship with a personal intro call.
@@ -64,7 +63,10 @@ SPECIALTY: Breast Oncology
 INSTITUTION: Houston Methodist Hospital
 CITY: Houston, TX
 REP_NOTES: Breast oncologist at a large Houston center with approximately 380 breast cancer patients per year. Comfortable with current HER2 and ER/PR IHC workflows but feels genomic testing is underutilized in later lines of therapy. Current practice is to order BRCA germline testing routinely but rarely orders somatic panels except in clearly refractory cases. She expressed openness to expanding testing but cited time pressure in clinic and patient anxiety around complex results as barriers. Noted that her patients frequently ask about clinical trials and she currently has no efficient way to surface trial options.
-OBJECTIONS: Concerned about overwhelming patients with too much information and the impact on clinic time to explain results. Asked whether comprehensive testing actually changes therapy decisions in HER2+ and HR+ disease, suggesting she is skeptical of testing beyond guideline-directed biomarkers.
+OBJECTION_TAGS: staff_bandwidth, ai_skepticism
+OBJECTIONS:
+- [staff_bandwidth] Concerned about clinic time to explain complex results and patient anxiety from information overload.
+- [ai_skepticism] Skeptical that broader comprehensive testing changes therapy decisions in HER2+ and HR+ disease beyond guideline-directed biomarkers.
 INTERESTS: Interested in data showing how often xT identifies new targeted options or clinical trials in metastatic breast cancer. Asked specifically about HER2-low detection and ESR1 mutation identification for endocrine-resistant patients. Responded positively when shown a case where xT identified a PIK3CA mutation leading to alpelisib eligibility.
 PRIORITY_RATIONALE: Current Tempus user but under-ordering relative to her volume. Later-line metastatic breast is the right wedge — HER2-low and ESR1 data are the closing argument.
 NEXT_STEPS: Send breast cancer-focused outcomes and actionability data, plus examples where genomic profiling changed therapy. Propose a targeted pilot for metastatic HER2-low and endocrine-resistant patients.
@@ -76,7 +78,9 @@ SPECIALTY: Thoracic Oncology
 INSTITUTION: Beth Israel Deaconess Medical Center
 CITY: Boston, MA
 REP_NOTES: Thoracic oncologist in Boston with heavy NSCLC volume — approximately 410 NSCLC patients per year. Known for being extremely hands-on with sequencing data; routinely reviews VCFs and primary literature before making therapy decisions. Has a PhD background in molecular biology in addition to his MD. He pushes back on any vendor that cannot provide raw data access or full evidence trails. Has used Foundation Medicine in the past and was openly critical of their report's evidence citation quality. Has heard of Tempus through a publication co-authored by a Tempus scientist and was willing to meet because of that scientific credibility signal.
-OBJECTIONS: "I don't want a black box. How do I know the AI isn't missing something?" Wants transparency into how variants are classified and what evidence supports each recommendation. Also asked about validation data, FDA clearance where applicable, and whether he can access raw data files (VCF, BAM) for deeper review. Questioned the tumor-normal matched approach and whether the matched normal truly filters CHIP.
+OBJECTION_TAGS: ai_skepticism
+OBJECTIONS:
+- [ai_skepticism] Wants transparency into variant classification, evidence trails, validation data, FDA status, and raw VCF/BAM access—not a black box; questions tumor-normal CHIP handling.
 INTERESTS: Appreciated the breadth of gene coverage and fusion detection when xT + xR are ordered together. Interested in TIME Trial real-world data but only if he can see underlying cohort definitions and methodology references. Expressed strong interest in the xR 510(k) clearance — said regulatory rigor matters to him for academic referrals.
 PRIORITY_RATIONALE: High-priority non-user with a clear scientific engagement path. Raw data access and validation transparency are the unlock. A pilot with joint case review will build the trust required.
 NEXT_STEPS: Send detailed validation summary including sensitivity/specificity tables and links to publications. Share example report with full evidence citations and describe how to access underlying variant-level data. Propose a pilot on 3–5 complex NSCLC cases with joint review.
@@ -88,7 +92,9 @@ SPECIALTY: GI Oncology
 INSTITUTION: University of Chicago Medical Center
 CITY: Chicago, IL
 REP_NOTES: Busy GI practice in Chicago with approximately 350 colorectal and gastric patients per year. Clinic staff is overwhelmed with prior auths, shipping logistics, and tracking multiple labs for different tests. Dr. Patel herself is motivated to improve genomic testing utilization but is constrained by what her two-person coordinator team can execute. Currently uses a regional lab for some biomarker testing and Foundation Medicine for comprehensive panels on select cases. Volume of comprehensive testing is low relative to her patient population — estimated 15–20% of eligible patients actually get a CGP.
-OBJECTIONS: Worried about staff bandwidth for sample prep and shipping, and the risk of rejections and re-sends if tissue is borderline. Asked specifically whether Tempus supports small biopsy samples and how often GI cases fail due to tissue quality. Also raised concerns about who handles prior auth — her coordinator is already at capacity.
+OBJECTION_TAGS: staff_bandwidth
+OBJECTIONS:
+- [staff_bandwidth] Coordinator at capacity; worried about sample prep, shipping, rejections, and who owns prior auth for complex panels.
 INTERESTS: Very interested in sample success rates broken down by tumor type and clear pre-analytical guidance that nurses can follow independently. Wants a single point of contact for ordering questions and tracking, ideally with proactive status updates rather than requiring her team to chase results.
 PRIORITY_RATIONALE: High-potential non-user who is operationally constrained rather than scientifically resistant. Tempus's support model and sample success rates are the pitch. A white-glove onboarding offer would likely close this account.
 NEXT_STEPS: Schedule call with Tempus support to review sample requirements for GI cases. Send sample success rate data including GI-specific metrics and a quick-reference one-pager her nurses can keep at the workroom desk.
@@ -100,7 +106,9 @@ SPECIALTY: Medical Oncology
 INSTITUTION: Dana-Farber Cancer Institute
 CITY: Boston, MA
 REP_NOTES: General medical oncologist at Dana-Farber focusing on lymphoma and melanoma — approximately 520 patients per year across both indications. Current Tempus user primarily for melanoma solid tumor profiling. Hematology cases (lymphoma) are currently sent to a different vendor that has a specialized heme panel. Meeting was a routine check-in; no major issues raised. He is generally satisfied but not deeply engaged — treats Tempus as one of several tools rather than a preferred platform. Noted that Dana-Farber has institutional contracts with multiple vendors and individual ordering decisions are somewhat independent of institutional preference.
-OBJECTIONS: No active objections. Raised the general question of whether Tempus's new xH hematology whole genome assay is better than his current heme vendor. Wants to see a direct comparison before considering a switch for lymphoma cases.
+OBJECTION_TAGS: competitor_loyalty
+OBJECTIONS:
+- [competitor_loyalty] Wants a direct comparison of Tempus xH vs current heme vendor before switching lymphoma cases.
 INTERESTS: Interested in xH launch and whether it adds value for large B-cell lymphoma and other aggressive hematologic malignancies. Also curious about ECG-AI for cardiotoxicity monitoring in his melanoma patients receiving combination IO.
 PRIORITY_RATIONALE: Existing user with growth potential in hematology (xH) and cardio-oncology (ECG-AI). Retention is stable; upsell opportunity is the priority for next meeting.
 NEXT_STEPS: Send xH launch materials with lymphoma-specific use cases. Prepare ECG-AI one-pager for cardiotoxicity monitoring in IO-treated solid tumor patients. Schedule follow-up for Q1 2026.
@@ -112,7 +120,10 @@ SPECIALTY: Breast Oncology
 INSTITUTION: Memorial Hermann Medical Center
 CITY: Houston, TX
 REP_NOTES: Community breast oncologist managing approximately 270 triple-negative and high-risk patients per year. Limited prior exposure to comprehensive genomic panels beyond BRCA germline testing via an outside genetics service. Practice is smaller and more resource-constrained than academic centers — she handles a significant portion of her own prior auth paperwork. Has expressed interest in doing more for her TNBC patients but feels out of depth with genomic data interpretation without additional support. Was referred to us by Dr. Foster at Houston Methodist who mentioned Tempus at a community tumor board.
-OBJECTIONS: Skeptical about payor coverage for broad somatic panels in early-stage and adjuvant settings. Worried about delays to surgery or chemo if testing takes too long in neoadjuvant scenarios. Also concerned about her own ability to interpret and explain results to patients without a genetic counselor on staff.
+OBJECTION_TAGS: cost_reimbursement, turnaround_time
+OBJECTIONS:
+- [cost_reimbursement] Skeptical payors will cover broad somatic panels in early-stage and adjuvant settings.
+- [turnaround_time] Worried testing could delay surgery or chemo in neoadjuvant scenarios if results are slow.
 INTERESTS: Responded when we discussed TNBC and how somatic profiling can identify PARP inhibitor candidates (BRCA1/2 somatic), trial options, and emerging targets. Curious about how Tempus supports trial matching in community settings and whether there is physician education support available. Asked about Ambry hereditary panels as a potential add-on for high-risk patients.
 PRIORITY_RATIONALE: Lower-volume community practice but strong unmet need in TNBC. Physician education support and trial matching are the value drivers. Ambry hereditary panel is a cross-sell opportunity given her high-risk patient population.
 NEXT_STEPS: Share TNBC-specific case studies and coverage examples. Offer a short virtual in-service for her group to walk through a TNBC xT report and trial-matching output. Introduce Ambry hereditary panel options for high-risk patients.
@@ -124,8 +135,86 @@ SPECIALTY: Thoracic Oncology
 INSTITUTION: Loyola University Medical Center
 CITY: Chicago, IL
 REP_NOTES: NSCLC-focused oncologist at Loyola with approximately 330 lung cancer patients per year. Currently uses a small targeted panel (EGFR, ALK, ROS1 hotspot testing only) ordered through the hospital's in-house molecular pathology lab. Acknowledges this misses NTRK, RET, MET exon 14, and other actionable drivers, but has not had a compelling reason to change the workflow until now. Hospital administration recently pushed back on testing costs, creating a reimbursement sensitivity that shapes every vendor conversation.
-OBJECTIONS: Main concern is cost and reimbursement for large comprehensive panels. "Will Medicare cover this if I order xT first-line?" Also asked about whether urgent inpatient cases can get results fast enough to avoid delaying therapy start. Mentioned one case where a patient started empiric chemo because testing took 3 weeks from another lab.
+OBJECTION_TAGS: cost_reimbursement, turnaround_time
+OBJECTIONS:
+- [cost_reimbursement] Main concern is cost and reimbursement for comprehensive panels; asks whether Medicare covers xT first-line.
+- [turnaround_time] Needs fast enough turnaround for urgent inpatient cases; cited prior lab taking 3 weeks and delaying therapy.
 INTERESTS: Wanted more detail on fusion detection with xR (ALK, RET, NTRK) and how rare variants are handled in reports. Liked the idea of a single comprehensive test covering DNA, fusions, and IO markers in one draw. Responded to the xT CDx ADLT reimbursement story — said "$4,500 covered by CMS changes the conversation with my administrator."
 PRIORITY_RATIONALE: High-priority non-user whose in-house panel almost certainly misses actionable alterations. ADLT reimbursement narrative and expedited TAT options are the path to conversion. Administrator buy-in is a key secondary step.
 NEXT_STEPS: Provide concise Medicare/local payor coverage summary with lung-specific examples. Share expedited TAT options for urgent admits and a sample report showing EGFR/ALK/ROS1 plus IO markers together. Suggest pilot for first 10 consecutive stage IV NSCLC cases.
+---
+
+PHYSICIAN: Dr. Emily Carter | PHY011
+DATE: 2025-10-12
+SPECIALTY: Medical Oncology
+INSTITUTION: Brigham and Women's Hospital
+CITY: Boston, MA
+REP_NOTES: Academic gynecologic-oncology-focused practice with approximately 460 ovarian and endometrial patients annually. Dr. Carter is open to comprehensive profiling but currently defaults to in-house hotspot testing first and only escalates to broader panels after progression. She emphasized the need for clear evidence communication because fellows often present first-pass recommendations at tumor board. Mentioned that recurrent ovarian cases frequently arrive after prior community treatment with incomplete molecular workups.
+OBJECTION_TAGS: cost_reimbursement, ai_skepticism
+OBJECTIONS:
+- [cost_reimbursement] Wants clear payer positioning for broad profiling in recurrent ovarian and endometrial settings where coverage varies by plan and line of therapy.
+- [ai_skepticism] Asked for transparent variant evidence and validation context, especially for uncommon alterations she may need to defend in tumor board.
+INTERESTS: Strong interest in HRD-related treatment selection, MSI/TMB reporting clarity, and trial matching for heavily pretreated ovarian disease. Asked for examples where comprehensive profiling changed management after negative hotspot testing.
+PRIORITY_RATIONALE: High-volume non-user with strong biomarker complexity. Reimbursement confidence and evidence transparency are the two gating factors to unlock routine ordering.
+NEXT_STEPS: Send payer coverage summary for gyn-oncology indications plus a sample report with citation-level evidence details. Propose a limited recurrent ovarian pilot with molecular board follow-up.
+---
+
+PHYSICIAN: Dr. Kevin Shah | PHY012
+DATE: 2025-11-02
+SPECIALTY: GI Oncology
+INSTITUTION: Memorial Sloan Kettering Cancer Center
+CITY: New York, NY
+REP_NOTES: Existing Tempus user in selected CRC workflows with very high GI volume (~590 annual cases across colorectal and biliary tumors). Dr. Shah acknowledged positive experiences with Tempus in metastatic CRC but noted legacy pathways still route many cholangiocarcinoma and rarer GI profiles to a competitor lab. He values consistency and wants fewer vendor handoffs if data depth is equivalent.
+OBJECTION_TAGS: competitor_loyalty, emr_integration
+OBJECTIONS:
+- [competitor_loyalty] Internal teams are habituated to a competitor for biliary/rare GI cases; switching would require consensus across multiple disease groups.
+- [emr_integration] Wants smoother ordering/results flow in institutional systems to avoid duplicate data entry by fellows and coordinators.
+INTERESTS: Interested in unified tissue + liquid strategy for GI and in specific fusion coverage for cholangiocarcinoma (FGFR2) and IDH1 workflows. Asked for operational examples of moving multi-team practices to one vendor.
+PRIORITY_RATIONALE: High-value account with expansion upside despite current-user status. Consolidation and workflow simplification, not initial adoption, are the core opportunity.
+NEXT_STEPS: Provide side-by-side GI coverage map and implementation plan for phased disease-group migration. Schedule joint session with operations lead to review integration touchpoints.
+---
+
+PHYSICIAN: Dr. Nina Banerjee | PHY013
+DATE: 2025-09-18
+SPECIALTY: Thoracic Oncology
+INSTITUTION: Cleveland Clinic
+CITY: Cleveland, OH
+REP_NOTES: Thoracic oncologist managing approximately 360 NSCLC/SCLC patients annually with frequent urgent inpatient starts. Current workflow leans on institution-targeted panel plus ad hoc liquid biopsy when tissue is limited; broad tissue + RNA profiling is often delayed. She said care teams want one dependable pathway that does not add logistics overhead.
+OBJECTION_TAGS: turnaround_time, staff_bandwidth
+OBJECTIONS:
+- [turnaround_time] Needs reliable sub-10-day turnaround to avoid delaying first-line decisions in symptomatic advanced NSCLC.
+- [staff_bandwidth] Team is stretched; concerns about sample handling failures, status tracking, and who owns coordination when inpatient discharge timelines are tight.
+INTERESTS: Engaged on reflex tissue-liquid strategy and fusion detection in driver-negative cases. Interested in reducing repeat biopsies through better first-pass comprehensive testing.
+PRIORITY_RATIONALE: Strong new-logo opportunity in a high-impact thoracic setting. TAT reliability plus operational support is the key conversion narrative.
+NEXT_STEPS: Share TAT performance benchmarks and thoracic sample success data. Offer workflow mapping session for inpatient-to-outpatient ordering handoff.
+---
+
+PHYSICIAN: Dr. Patrick O'Neill | PHY014
+DATE: 2025-10-05
+SPECIALTY: Hematology-Oncology
+INSTITUTION: Mayo Clinic
+CITY: Rochester, MN
+REP_NOTES: Mixed heme-onc referral practice (~440 annual lymphoma/leukemia-focused patients) with strong methodology scrutiny and multidisciplinary review culture. Dr. O'Neill uses a specialized heme vendor for many assays but is open to consolidation where data quality and interpretability are strong. He repeatedly asked for concrete examples of decision impact in relapsed disease.
+OBJECTION_TAGS: competitor_loyalty, ai_skepticism
+OBJECTIONS:
+- [competitor_loyalty] Existing heme-vendor relationship is entrenched; switching requires clear differentiation in assay breadth and interpretation support.
+- [ai_skepticism] Wants transparent methods and evidence trails; wary of algorithmic claims without explicit citations and validation detail.
+INTERESTS: Interested in lymphoma molecular subtyping clarity and relapse/refractory trial matching support. Asked whether reports can support rapid board-ready communication for complex salvage cases.
+PRIORITY_RATIONALE: Non-user with meaningful strategic upside if scientific trust is established. Competitive displacement requires evidence-first positioning.
+NEXT_STEPS: Send methodology and validation package with publication links. Prepare case examples showing impact in relapse settings and suggest a small comparative pilot.
+---
+
+PHYSICIAN: Dr. Olivia Martinez | PHY015
+DATE: 2025-11-08
+SPECIALTY: Breast Oncology
+INSTITUTION: University of California San Francisco
+CITY: San Francisco, CA
+REP_NOTES: Breast oncology specialist (~300 annual patients) with growing HER2-low and endocrine-resistant caseload. Current genomic ordering is episodic and dependent on individual clinician preference rather than standardized triggers. Dr. Martinez is enthusiastic about trial matching but noted clinic throughput pressures and payer uncertainty slow adoption of broad testing.
+OBJECTION_TAGS: cost_reimbursement, staff_bandwidth
+OBJECTIONS:
+- [cost_reimbursement] Needs practical guidance on when broad profiling is covered in metastatic HER2-low and HR+ resistant populations.
+- [staff_bandwidth] Team needs a streamlined process for ordering, follow-up, and communicating complex results without adding coordinator burden.
+INTERESTS: Strong interest in ESR1/PIK3CA resistance profiling and ctDNA-informed sequencing over time. Asked for report examples focused on treatment sequencing decisions in endocrine-resistant disease.
+PRIORITY_RATIONALE: Good-fit non-user in a biomarker-driven academic breast practice. Operational simplicity plus reimbursement clarity should materially increase ordering.
+NEXT_STEPS: Provide breast-specific coverage playbook and concise workflow checklist for coordinators. Schedule focused review of HER2-low and ESR1 case examples.
 ---

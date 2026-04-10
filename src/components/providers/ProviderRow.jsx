@@ -88,7 +88,7 @@ export function ProviderRow({ provider, onClick, onGenerateBrief }) {
             onClick={handleGenerate}
             className="inline-flex items-center rounded-full bg-accent-gradient px-3 py-1.5 text-[11px] font-medium text-bg-primary shadow-tempus transition-transform duration-150 hover:scale-[1.02]"
           >
-           Brief →
+           Brief→
           </button>
         </div>
       </td>

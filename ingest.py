@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 from pathlib import Path
 from typing import Dict, List
 
@@ -23,6 +24,7 @@ import chromadb
 import pandas as pd
 from dotenv import load_dotenv
 from llama_index.core import Document, Settings, VectorStoreIndex
+from priority_scoring import compute_base_score_series, row_effective_priority
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.vector_stores.chroma import ChromaVectorStore
@@ -54,10 +56,14 @@ def _load_market_data() -> List[Document]:
     """Load market_data.csv and convert each row to a Document."""
     csv_path = DATA_DIR / "market_data.csv"
     df = pd.read_csv(csv_path)
+    if "priority_adjustment" not in df.columns:
+        df["priority_adjustment"] = 0.0
+    base_series = compute_base_score_series(df)
 
     docs: List[Document] = []
     for _, row in df.iterrows():
         physician_id = str(row["physician_id"])
+        effective_priority = row_effective_priority(row, df, base_series)
         text = (
             f"Physician market data for {row['name']} ({row['physician_id']}): "
             f"specialty={row['specialty']}, institution={row['institution']}, "
@@ -66,7 +72,7 @@ def _load_market_data() -> List[Document]:
             f"primary_cancer_focus={row['primary_cancer_focus']}, "
             f"current_tempus_user={row['current_tempus_user']}, "
             f"last_contact_date={row['last_contact_date']}, "
-            f"priority_score={row['priority_score']}."
+            f"priority_score={effective_priority}."
         )
         metadata = {
             "source": "market_data",
@@ -82,37 +88,81 @@ def _load_market_data() -> List[Document]:
             "last_contact_date": (
                 None if pd.isna(row["last_contact_date"]) else str(row["last_contact_date"])
             ),
-            "priority_score": float(row["priority_score"]),
+            "priority_score": float(effective_priority),
         }
         docs.append(Document(text=text, metadata=metadata, doc_id=f"market-{physician_id}"))
 
     return docs
 
 
+# Lines like `PHYSICIAN:`, `OBJECTION_TAGS:`, `OBJECTIONS:` (multi-line supported).
+_CRM_FIELD_HEADER = re.compile(r"^([A-Z][A-Z0-9_]*):\s*(.*)$")
+_OBJ_BULLET = re.compile(r"^\s*-\s*\[([a-z0-9_]+)\]\s*(.*)$", re.IGNORECASE)
+
+
+def _parse_objection_bullets(text: str) -> List[tuple[str, str]]:
+    """Parse lines like '- [turnaround_time] Needs results in 10 days'."""
+    out: List[tuple[str, str]] = []
+    for line in (text or "").splitlines():
+        m = _OBJ_BULLET.match(line.strip())
+        if m:
+            out.append((m.group(1).lower(), m.group(2).strip()))
+    return out
+
+
 def _parse_crm_block(block: str) -> Dict:
-    """Parse a single CRM notes block into structured fields."""
-    lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
+    """Parse a single CRM notes block into structured fields.
+
+    Supports:
+    - OBJECTION_TAGS: comma-separated canonical tags (aligns with RAG topic keys)
+    - OBJECTIONS: multi-line; continuation lines do not start with KEY:
+    - Standard single-line fields (DATE, REP_NOTES, INTERESTS, etc.)
+    """
+    lines = block.splitlines()
     data: Dict[str, str] = {}
-    for line in lines:
-        if line.startswith("PHYSICIAN:"):
-            # PHYSICIAN: Dr. Sarah Chen | PHY001
-            rest = line.split("PHYSICIAN:", 1)[1].strip()
+    i = 0
+    while i < len(lines):
+        stripped = lines[i].strip()
+        if not stripped:
+            i += 1
+            continue
+        m = _CRM_FIELD_HEADER.match(stripped)
+        if not m:
+            i += 1
+            continue
+        key = m.group(1).lower()
+        val = m.group(2).strip()
+
+        if key == "physician":
+            rest = val
             if "|" in rest:
                 name_part, id_part = [p.strip() for p in rest.split("|", 1)]
                 data["name"] = name_part
                 data["physician_id"] = id_part
             else:
                 data["name"] = rest
-        elif line.startswith("DATE:"):
-            data["date"] = line.split("DATE:", 1)[1].strip()
-        elif line.startswith("REP_NOTES:"):
-            data["rep_notes"] = line.split("REP_NOTES:", 1)[1].strip()
-        elif line.startswith("OBJECTIONS:"):
-            data["objections"] = line.split("OBJECTIONS:", 1)[1].strip()
-        elif line.startswith("INTERESTS:"):
-            data["interests"] = line.split("INTERESTS:", 1)[1].strip()
-        elif line.startswith("NEXT_STEPS:"):
-            data["next_steps"] = line.split("NEXT_STEPS:", 1)[1].strip()
+            i += 1
+            continue
+
+        if key == "objections":
+            parts: List[str] = []
+            if val:
+                parts.append(val)
+            i += 1
+            while i < len(lines):
+                nxt = lines[i].strip()
+                if not nxt:
+                    i += 1
+                    continue
+                if _CRM_FIELD_HEADER.match(nxt):
+                    break
+                parts.append(nxt)
+                i += 1
+            data["objections"] = "\n".join(parts).strip()
+            continue
+
+        data[key] = val
+        i += 1
     return data
 
 
@@ -129,62 +179,154 @@ def _load_crm_notes() -> List[Document]:
             continue
         physician_id = parsed.get("physician_id", f"UNKNOWN_{idx}")
         name = parsed.get("name", "Unknown Physician")
+        objection_tags = str(parsed.get("objection_tags", "")).strip()
         text = (
             f"CRM notes for {name} ({physician_id}). "
             f"Date: {parsed.get('date', 'N/A')}. "
             f"Rep notes: {parsed.get('rep_notes', '')} "
+            f"Objection tags: {objection_tags}. "
             f"Objections: {parsed.get('objections', '')} "
             f"Interests: {parsed.get('interests', '')} "
             f"Next steps: {parsed.get('next_steps', '')}"
         )
         metadata = {
             "source": "crm_notes",
+            "doc_type": "crm_summary",
             "physician_id": physician_id,
             "name": name,
             "objections": parsed.get("objections", ""),
+            "objection_tags": objection_tags,
             "interests": parsed.get("interests", ""),
         }
         docs.append(Document(text=text, metadata=metadata, doc_id=f"crm-{physician_id}"))
+
+        # Split high-signal fields into focused docs to improve retrieval precision.
+        objection_text = str(parsed.get("objections", "")).strip()
+        if objection_text:
+            docs.append(
+                Document(
+                    text=f"Objections for {name} ({physician_id}): {objection_text}",
+                    metadata={
+                        "source": "crm_notes",
+                        "doc_type": "crm_objections",
+                        "physician_id": physician_id,
+                        "name": name,
+                        "objections": objection_text,
+                        "objection_tags": objection_tags,
+                    },
+                    doc_id=f"crm-{physician_id}-objections",
+                )
+            )
+            for topic, detail in _parse_objection_bullets(objection_text):
+                docs.append(
+                    Document(
+                        text=f"Objection topic {topic} for {name} ({physician_id}): {detail}",
+                        metadata={
+                            "source": "crm_notes",
+                            "doc_type": "crm_objection_topic",
+                            "physician_id": physician_id,
+                            "name": name,
+                            "objections": detail,
+                            "objection_topic": topic,
+                            "objection_tags": objection_tags,
+                        },
+                        doc_id=f"crm-{physician_id}-obj-{topic}",
+                    )
+                )
+        interests_text = str(parsed.get("interests", "")).strip()
+        if interests_text:
+            docs.append(
+                Document(
+                    text=f"Interests for {name} ({physician_id}): {interests_text}",
+                    metadata={
+                        "source": "crm_notes",
+                        "doc_type": "crm_interests",
+                        "physician_id": physician_id,
+                        "name": name,
+                        "interests": interests_text,
+                        "objection_tags": objection_tags,
+                    },
+                    doc_id=f"crm-{physician_id}-interests",
+                )
+            )
     return docs
 
 
+def _normalize_text(text: str) -> str:
+    return re.sub(r"\s+", " ", (text or "")).strip()
+
+
+def _chunk_text_by_size(text: str, max_chars: int = 1000, overlap_chars: int = 120) -> List[str]:
+    """Simple semantic-preserving chunking by paragraph with character budget."""
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    chunks: List[str] = []
+    current = ""
+    for para in paragraphs:
+        candidate = para if not current else f"{current}\n\n{para}"
+        if len(candidate) <= max_chars:
+            current = candidate
+            continue
+        if current:
+            chunks.append(current)
+            tail = current[-overlap_chars:] if overlap_chars > 0 else ""
+            current = f"{tail}\n\n{para}".strip() if tail else para
+        else:
+            chunks.append(para[:max_chars])
+            current = para[max_chars - overlap_chars :] if len(para) > max_chars else ""
+    if current.strip():
+        chunks.append(current.strip())
+    return [_normalize_text(c) for c in chunks if _normalize_text(c)]
+
+
 def _load_kb_documents() -> List[Document]:
-    """Load tempus_kb.md and chunk by top-level ## section."""
+    """Load tempus_kb.md and chunk by section/subsection with size limits."""
     path = DATA_DIR / "tempus_kb.md"
     text = path.read_text(encoding="utf-8")
+    docs: List[Document] = []
+    current_h2: str | None = None
+    current_h3: str | None = None
+    buffer: List[str] = []
+    counter = 0
 
-    sections: List[Document] = []
-    current_heading: str | None = None
-    current_lines: List[str] = []
-
-    def flush_section() -> None:
-        if current_heading and current_lines:
-            content = "\n".join(current_lines).strip()
-            if not content:
-                return
-            sections.append(
+    def flush_buffer() -> None:
+        nonlocal counter, buffer
+        if not current_h2 or not buffer:
+            return
+        raw_content = "\n".join(buffer).strip()
+        if not raw_content:
+            buffer = []
+            return
+        for idx, chunk in enumerate(_chunk_text_by_size(raw_content), start=1):
+            counter += 1
+            heading = current_h2 if not current_h3 else f"{current_h2} / {current_h3}"
+            docs.append(
                 Document(
-                    text=content,
+                    text=chunk,
                     metadata={
                         "source": "knowledge_base",
-                        "section": current_heading,
+                        "section": current_h2,
+                        "subsection": current_h3 or "",
+                        "chunk_index": idx,
                     },
-                    doc_id=f"kb-{current_heading.lower().replace(' ', '-')}",
+                    doc_id=f"kb-{counter}-{heading.lower().replace(' ', '-').replace('/', '-')}",
                 )
             )
+        buffer = []
 
     for line in text.splitlines():
         if line.startswith("## "):
-            # New section
-            flush_section()
-            current_heading = line[3:].strip()
-            current_lines = []
-        else:
-            if current_heading is not None:
-                current_lines.append(line)
-
-    flush_section()
-    return sections
+            flush_buffer()
+            current_h2 = line[3:].strip()
+            current_h3 = None
+            continue
+        if line.startswith("### "):
+            flush_buffer()
+            current_h3 = line[4:].strip()
+            continue
+        if current_h2 is not None:
+            buffer.append(line)
+    flush_buffer()
+    return docs
 
 
 def ingest(force: bool = False) -> None:

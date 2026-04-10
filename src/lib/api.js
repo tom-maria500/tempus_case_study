@@ -47,11 +47,27 @@ export async function generateBrief(physician) {
   return res.json();
 }
 
-export async function getIntel(physicianId, daysLookback = 90) {
+export async function getIntel(physicianId, options = 90) {
+  const payload = { physician_id: physicianId };
+  if (typeof options === 'number') {
+    payload.days_lookback = options;
+  } else if (options && typeof options === 'object') {
+    if (typeof options.daysLookback === 'number') {
+      payload.days_lookback = options.daysLookback;
+    }
+    if (options.startDate) {
+      payload.start_date = options.startDate;
+    }
+    if (options.endDate) {
+      payload.end_date = options.endDate;
+    }
+  } else {
+    payload.days_lookback = 90;
+  }
   const res = await fetch(`${BASE_URL}/intel`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ physician_id: physicianId, days_lookback: daysLookback })
+    body: JSON.stringify(payload)
   });
   if (!res.ok) {
     if (res.status === 404) throw new Error('Physician not found');

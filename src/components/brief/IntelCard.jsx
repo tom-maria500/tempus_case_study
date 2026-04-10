@@ -29,9 +29,12 @@ export function IntelCard({ item, onUseInPitch }) {
               Source <ExternalLink className="h-3 w-3" />
             </a>
           )}
-          {item.date && (
-            <span className="text-[11px] text-text-muted">{item.date}</span>
-          )}
+          {item.date ? (
+            <span className="text-[11px] text-text-muted">
+              <span className="text-text-muted/80">Source date </span>
+              {item.date}
+            </span>
+          ) : null}
         </div>
         {onUseInPitch && (
           <button

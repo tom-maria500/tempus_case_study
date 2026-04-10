@@ -6,7 +6,7 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 import re
 
 import chromadb
@@ -14,7 +14,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from llama_index.core import Settings, VectorStoreIndex
 from llama_index.core.retrievers import VectorIndexRetriever
-from llama_index.core.schema import Document, NodeWithScore
+from llama_index.core.schema import Document, NodeWithScore, TextNode
 from llama_index.core.vector_stores import MetadataFilter, MetadataFilters, FilterOperator
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.anthropic import Anthropic
@@ -22,12 +22,103 @@ from llama_index.llms.openai import OpenAI
 from llama_index.vector_stores.chroma import ChromaVectorStore
 
 from models import BriefResponse, ChatRequest, ChatResponse, PhysicianProfile, ProviderRank
+from priority_scoring import compute_base_score_series, row_effective_priority
 
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 DEFAULT_CHROMA_DIR = BASE_DIR / "chroma_db"
 CHROMA_COLLECTION_NAME = "tempus_physicians"
+
+OBJECTION_TOPIC_KEYWORDS = {
+    "turnaround_time": (
+        "turnaround",
+        "tat",
+        "days",
+        "first-line",
+        "urgent",
+        "delay",
+    ),
+    "cost_reimbursement": (
+        "cost",
+        "reimbursement",
+        "coverage",
+        "adlt",
+        "medicare",
+        "prior auth",
+        "authorization",
+        "financial",
+        "appeal",
+    ),
+    "competitor_loyalty": (
+        "foundation",
+        "guardant",
+        "vendor",
+        "switch",
+        "disruptive",
+        "existing workflow",
+        "loyal",
+    ),
+    "emr_integration": (
+        "epic",
+        "emr",
+        "ehr",
+        "structured field",
+        "integration",
+        "import",
+        "portal",
+    ),
+    "staff_bandwidth": (
+        "staff",
+        "bandwidth",
+        "workload",
+        "coordinator",
+        "sample prep",
+        "shipping",
+        "support team",
+        "operations",
+    ),
+    "ai_skepticism": (
+        "black box",
+        "transparent",
+        "transparency",
+        "evidence",
+        "citation",
+        "validation",
+        "raw data",
+        "vcf",
+        "trust",
+        "ai-driven",
+        "artificial intelligence",
+    ),
+}
+
+KB_FACTS_BY_TOPIC = {
+    "turnaround_time": (
+        "xT CDx median turnaround time is 9-11 calendar days from sample receipt, and xF median turnaround is 7-9 days. "
+        "Tempus reports >97% sample success for adequate FFPE, which reduces delays from recollection."
+    ),
+    "cost_reimbursement": (
+        "xT CDx has CMS ADLT reimbursement at $4,500, and Tempus provides prior-authorization support through its billing team. "
+        "Coverage details can be confirmed per plan to reduce staff burden around appeals and patient access."
+    ),
+    "competitor_loyalty": (
+        "Tempus can support a phased switch with side-by-side report comparisons, rather than forcing an all-at-once migration. "
+        "The platform unifies tissue (xT), liquid (xF), and RNA (xR) workflows to reduce multi-vendor fragmentation."
+    ),
+    "emr_integration": (
+        "Tempus supports Epic integration with one-click result import and structured TMB/PD-L1 fields for charting. "
+        "That helps teams avoid manual copy-paste and keeps documentation workflows consistent."
+    ),
+    "staff_bandwidth": (
+        "Tempus provides pre-analytical guidance and support for ordering and specimen tracking to reduce coordinator burden. "
+        "Sample success rates above 97% for adequate FFPE help minimize rework from failed specimens."
+    ),
+    "ai_skepticism": (
+        "Tempus reporting is evidence-based with cited sources and access to underlying variant-level context when needed. "
+        "Regulatory and validation anchors (including FDA-cleared components) support scientific trust and reviewability."
+    ),
+}
 
 
 class PhysicianNotFoundError(Exception):
@@ -121,7 +212,11 @@ def _find_physician_row(
     return matches.iloc[0]
 
 
-def _row_to_profile(row: pd.Series) -> PhysicianProfile:
+def _row_to_profile(
+    row: pd.Series,
+    df: pd.DataFrame,
+    base_series: pd.Series,
+) -> PhysicianProfile:
     last_contact = row.get("last_contact_date")
     last_contact_str = None if (pd.isna(last_contact) or last_contact == "") else str(last_contact)
     return PhysicianProfile(
@@ -135,7 +230,7 @@ def _row_to_profile(row: pd.Series) -> PhysicianProfile:
         current_tempus_user=bool(row["current_tempus_user"]),
         primary_cancer_focus=str(row["primary_cancer_focus"]),
         last_contact_date=last_contact_str,  # Pydantic will parse ISO date string
-        priority_score=float(row["priority_score"]),
+        priority_score=row_effective_priority(row, df, base_series),
     )
 
 
@@ -161,21 +256,343 @@ def _retrieve_crm_for_physician(
 def _retrieve_kb_chunks(
     index: VectorStoreIndex, specialty: str, primary_cancer_focus: str, known_objections: str
 ) -> List[NodeWithScore]:
-    """Retrieve relevant KB chunks based on specialty and objections."""
-    retriever = index.as_retriever(similarity_top_k=3)
+    """Hybrid retrieval: dense + sparse keyword scoring + lightweight reranking."""
     query = (
         f"Tempus test portfolio, performance metrics, and objection handling relevant for "
         f"{specialty} and cancer types {primary_cancer_focus}. "
         f"Address objections: {known_objections}."
     )
+    dense_nodes = _retrieve_kb_dense(index, query, top_k=10)
+    sparse_nodes = _retrieve_kb_sparse(
+        query=query,
+        specialty=specialty,
+        primary_cancer_focus=primary_cancer_focus,
+        known_objections=known_objections,
+        top_k=10,
+    )
+    return _rerank_hybrid_kb_nodes(
+        query=query,
+        dense_nodes=dense_nodes,
+        sparse_nodes=sparse_nodes,
+        top_k=5,
+    )
+
+
+def _tokenize_for_sparse(text: str) -> List[str]:
+    return re.findall(r"[a-z0-9]+", (text or "").lower())
+
+
+def _keyword_score(text: str, query_terms: List[str]) -> float:
+    if not text or not query_terms:
+        return 0.0
+    lowered = text.lower()
+    score = 0.0
+    for term in query_terms:
+        if len(term) <= 2:
+            continue
+        if re.search(r"\b" + re.escape(term) + r"\b", lowered):
+            score += 1.0
+    return score
+
+
+def _kb_corpus_documents() -> List[Document]:
+    path = DATA_DIR / "tempus_kb.md"
+    if not path.exists():
+        return []
+    text = path.read_text(encoding="utf-8")
+    docs: List[Document] = []
+    current_h2: str | None = None
+    current_h3: str | None = None
+    lines: List[str] = []
+    counter = 0
+
+    def flush() -> None:
+        nonlocal counter, lines
+        if not current_h2 or not lines:
+            return
+        content = "\n".join(lines).strip()
+        if not content:
+            lines = []
+            return
+        counter += 1
+        heading = current_h2 if not current_h3 else f"{current_h2} / {current_h3}"
+        docs.append(
+            Document(
+                text=content,
+                metadata={
+                    "source": "knowledge_base",
+                    "section": current_h2,
+                    "subsection": current_h3 or "",
+                },
+                doc_id=f"kb-corpus-{counter}-{heading.lower().replace(' ', '-').replace('/', '-')}",
+            )
+        )
+        lines = []
+
+    for line in text.splitlines():
+        if line.startswith("## "):
+            flush()
+            current_h2 = line[3:].strip()
+            current_h3 = None
+            continue
+        if line.startswith("### "):
+            flush()
+            current_h3 = line[4:].strip()
+            continue
+        if current_h2 is not None:
+            lines.append(line)
+    flush()
+    return docs
+
+
+def _retrieve_kb_dense(index: VectorStoreIndex, query: str, top_k: int = 10) -> List[NodeWithScore]:
+    filters = MetadataFilters(
+        filters=[MetadataFilter(key="source", operator=FilterOperator.EQ, value="knowledge_base")]
+    )
+    retriever = index.as_retriever(similarity_top_k=top_k, filters=filters)
     return retriever.retrieve(query)
+
+
+def _retrieve_kb_sparse(
+    query: str,
+    specialty: str,
+    primary_cancer_focus: str,
+    known_objections: str,
+    top_k: int = 10,
+) -> List[NodeWithScore]:
+    query_terms = _tokenize_for_sparse(
+        " ".join([query, specialty, primary_cancer_focus, known_objections])
+    )
+    scored: List[tuple[float, Document]] = []
+    for doc in _kb_corpus_documents():
+        text = doc.text
+        score = _keyword_score(text, query_terms)
+        if score > 0:
+            scored.append((score, doc))
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    out: List[NodeWithScore] = []
+    for score, doc in scored[:top_k]:
+        node = TextNode(text=doc.text, metadata=doc.metadata)
+        out.append(NodeWithScore(node=node, score=score))
+    return out
+
+
+def _rerank_hybrid_kb_nodes(
+    query: str,
+    dense_nodes: List[NodeWithScore],
+    sparse_nodes: List[NodeWithScore],
+    top_k: int = 5,
+) -> List[NodeWithScore]:
+    """Merge and rerank candidates with reciprocal-rank fusion + keyword match bonus."""
+    merged: Dict[str, NodeWithScore] = {}
+    dense_rank: Dict[str, int] = {}
+    sparse_rank: Dict[str, int] = {}
+
+    for i, n in enumerate(dense_nodes):
+        key = n.node.get_content().strip()[:1200]
+        dense_rank[key] = i + 1
+        merged[key] = n
+    for i, n in enumerate(sparse_nodes):
+        key = n.node.get_content().strip()[:1200]
+        sparse_rank[key] = i + 1
+        if key not in merged:
+            merged[key] = n
+
+    query_terms = _tokenize_for_sparse(query)
+    reranked: List[NodeWithScore] = []
+    for key, node in merged.items():
+        rr_dense = 1.0 / (60 + dense_rank.get(key, 10_000))
+        rr_sparse = 1.0 / (60 + sparse_rank.get(key, 10_000))
+        kw_bonus = 0.05 * _keyword_score(node.node.get_content(), query_terms)
+        final_score = rr_dense + rr_sparse + kw_bonus
+        reranked.append(NodeWithScore(node=node.node, score=final_score))
+    reranked.sort(key=lambda n: n.score or 0.0, reverse=True)
+    return reranked[:top_k]
+
+
+def _extract_objections_from_crm_nodes(crm_nodes: List[NodeWithScore]) -> List[str]:
+    """Prefer full OBJECTIONS block from summary/objections docs; skip per-topic shards."""
+    objections: List[str] = []
+    seen: set[str] = set()
+    preferred_types = frozenset({"crm_summary", "crm_objections"})
+    for node in crm_nodes:
+        try:
+            doc_type = str(node.node.metadata.get("doc_type") or "")  # type: ignore[attr-defined]
+            meta_obj = node.node.metadata.get("objections")  # type: ignore[attr-defined]
+        except Exception:
+            doc_type = ""
+            meta_obj = None
+        if doc_type and doc_type not in preferred_types:
+            continue
+        if meta_obj:
+            val = str(meta_obj).strip()
+            if val and val not in seen:
+                seen.add(val)
+                objections.append(val)
+    if not objections:
+        for node in crm_nodes:
+            try:
+                meta_obj = node.node.metadata.get("objections")  # type: ignore[attr-defined]
+            except Exception:
+                meta_obj = None
+            if meta_obj:
+                val = str(meta_obj).strip()
+                if val and val not in seen:
+                    seen.add(val)
+                    objections.append(val)
+    return objections
+
+
+def _extract_objection_tags_from_crm_nodes(crm_nodes: List[NodeWithScore]) -> List[str]:
+    """Read comma-separated OBJECTION_TAGS from CRM metadata (prefer summary doc)."""
+    preferred: List[NodeWithScore] = []
+    rest: List[NodeWithScore] = []
+    for node in crm_nodes:
+        try:
+            dt = str(node.node.metadata.get("doc_type") or "")  # type: ignore[attr-defined]
+        except Exception:
+            dt = ""
+        if dt == "crm_summary":
+            preferred.append(node)
+        else:
+            rest.append(node)
+    for node in preferred + rest:
+        try:
+            raw = node.node.metadata.get("objection_tags")  # type: ignore[attr-defined]
+        except Exception:
+            raw = None
+        if raw and str(raw).strip():
+            return [t.strip() for t in str(raw).split(",") if t.strip()]
+    return []
+
+
+def _canonical_topics_from_tags(tags: List[str]) -> List[str]:
+    """Keep only tags that match known RAG objection topic keys."""
+    out: List[str] = []
+    for t in tags:
+        key = t.strip().lower().replace(" ", "_")
+        if key in OBJECTION_TOPIC_KEYWORDS and key not in out:
+            out.append(key)
+    return out
+
+
+def _infer_objection_topics(text: str) -> set[str]:
+    lowered = (text or "").lower()
+    topics: set[str] = set()
+    for topic, keywords in OBJECTION_TOPIC_KEYWORDS.items():
+        if any(_keyword_in_text(lowered, kw) for kw in keywords):
+            topics.add(topic)
+    return topics
+
+
+def _keyword_in_text(text: str, keyword: str) -> bool:
+    # Word-boundary matching avoids false positives like matching "ai" inside "raised".
+    pattern = r"\b" + re.escape(keyword).replace(r"\ ", r"\s+") + r"\b"
+    return re.search(pattern, text) is not None
+
+
+def _select_primary_topics(objections: List[str], max_topics: int = 2) -> set[str]:
+    """Pick the first 1-2 objection topics in CRM order to keep handlers focused."""
+    ordered: List[str] = []
+    for objection in objections:
+        lowered = (objection or "").lower()
+        first_pos: List[tuple[int, str]] = []
+        for topic, keywords in OBJECTION_TOPIC_KEYWORDS.items():
+            positions = []
+            for kw in keywords:
+                pattern = r"\b" + re.escape(kw).replace(r"\ ", r"\s+") + r"\b"
+                m = re.search(pattern, lowered)
+                if m:
+                    positions.append(m.start())
+            if positions:
+                first_pos.append((min(positions), topic))
+        for _, topic in sorted(first_pos, key=lambda x: x[0]):
+            if topic not in ordered:
+                ordered.append(topic)
+    return set(ordered[:max_topics])
+
+
+def _handler_matches_required_topics(
+    handler: str,
+    required_topics: set[str],
+    allowed_topics: set[str] | None = None,
+) -> bool:
+    if not required_topics:
+        return bool(handler.strip())
+    handler_topics = _infer_objection_topics(handler)
+    if not required_topics.issubset(handler_topics):
+        return False
+    if allowed_topics is not None and not handler_topics.issubset(allowed_topics):
+        return False
+    return True
+
+
+def _fallback_objection_handler(required_topics: set[str], raw_objections: List[str]) -> str:
+    if not required_topics:
+        return (
+            "Acknowledge the physician's top concern directly, then answer it with one concrete Tempus metric from the knowledge base. "
+            "Close by proposing a low-friction next step tailored to their workflow."
+        )
+    concern_labels = {
+        "turnaround_time": "turnaround time",
+        "cost_reimbursement": "cost and reimbursement",
+        "competitor_loyalty": "vendor switching risk",
+        "emr_integration": "EMR workflow fit",
+        "staff_bandwidth": "staff bandwidth",
+        "ai_skepticism": "AI transparency",
+    }
+    concern_phrase = ", ".join(concern_labels.get(t, t) for t in sorted(required_topics))
+    topic_facts = [KB_FACTS_BY_TOPIC[t] for t in sorted(required_topics) if t in KB_FACTS_BY_TOPIC]
+    topic_text = " ".join(topic_facts).strip()
+    return f"I hear your concerns around {concern_phrase}. {topic_text}"
+
+
+def _rewrite_objection_handler_strict(
+    objection_handler: str,
+    required_topics: set[str],
+    allowed_topics: set[str],
+    raw_objections: List[str],
+    kb_chunks: List[str],
+) -> str:
+    if not required_topics:
+        return objection_handler.strip()
+    topics_list = ", ".join(sorted(required_topics))
+    objections_text = "\n".join(f"- {x}" for x in raw_objections if x.strip()) or "- None provided"
+    kb_text = "\n\n---\n\n".join(kb_chunks[:4])
+    rewrite_prompt = f"""
+You are fixing an objection handler that drifted away from the physician's actual objections.
+
+Required objection topics (must all be addressed): {topics_list}
+Allowed objection topics (do not introduce others): {", ".join(sorted(allowed_topics))}
+Original objections from CRM:
+{objections_text}
+
+Current objection handler (may be wrong):
+{objection_handler}
+
+Product knowledge:
+{kb_text}
+
+Return JSON only:
+{{
+  "objection_handler": "<2-3 sentences, must address required topics and avoid any topic outside allowed topics using only facts above>"
+}}
+"""
+    raw = _call_llm_for_brief(rewrite_prompt)
+    rewritten = str(raw.get("objection_handler", "")).strip()
+    if rewritten and _handler_matches_required_topics(
+        rewritten, required_topics, allowed_topics=allowed_topics
+    ):
+        return rewritten
+    return _fallback_objection_handler(required_topics, raw_objections)
 
 
 def _build_prompt(
     physician_profile: PhysicianProfile,
     crm_nodes: List[NodeWithScore],
     kb_nodes: List[NodeWithScore],
-) -> Tuple[str, List[str]]:
+) -> Tuple[str, List[str], List[str], set[str]]:
     """Construct structured prompt and return (prompt, kb_chunks_text)."""
     # Physician context
     ctx = physician_profile
@@ -200,14 +617,16 @@ def _build_prompt(
 
     # Extract objections from CRM metadata (same OBJECTIONS field as in CRM HISTORY text)
     # so the model can tie the objection_handler to the data.
-    objections_from_crm: List[str] = []
-    for node in crm_nodes:
-        try:
-            meta_obj = node.node.metadata.get("objections")  # type: ignore[attr-defined]
-        except Exception:
-            meta_obj = None
-        if meta_obj:
-            objections_from_crm.append(str(meta_obj))
+    objections_from_crm = _extract_objections_from_crm_nodes(crm_nodes)
+    tags_canonical = _canonical_topics_from_tags(_extract_objection_tags_from_crm_nodes(crm_nodes))
+    if tags_canonical:
+        required_topics = set(tags_canonical[:2])
+        all_detected_topics = set(tags_canonical)
+    else:
+        all_detected_topics = _infer_objection_topics("\n".join(objections_from_crm))
+        required_topics = _select_primary_topics(objections_from_crm, max_topics=2)
+        if not required_topics:
+            required_topics = all_detected_topics
 
     objections_text = (
         "None in CRM HISTORY for this physician; choose one relevant theme from "
@@ -249,24 +668,33 @@ Rules:
 - Only use metrics and tests from PRODUCT KNOWLEDGE.
 - Do NOT mention TAT or Epic unless it appears in [OBJECTIONS FROM CRM HISTORY] or [CRM HISTORY].
 - Objection handler must reflect the objections in [OBJECTIONS FROM CRM HISTORY]. Vary the handler by what is stated there; do not use the same response for every physician.
+- Objection handler must explicitly cover every topic listed in [REQUIRED OBJECTION TOPICS] and avoid introducing unrelated themes.
+- Keep the objection handler tightly focused: address only the required objection topics and do not add extra concern themes.
 - Tone: professional, peer-to-peer.
 - Respond ONLY with valid JSON, no extra text.
 """
 
+    tags_line = (
+        ", ".join(tags_canonical) if tags_canonical else "none (infer from OBJECTIONS text)"
+    )
     prompt = (
         "[PHYSICIAN CONTEXT]\n"
         f"{physician_context}\n\n"
         "[CRM HISTORY]\n"
         f"{crm_text}\n\n"
+        "[CANONICAL OBJECTION TAGS FROM CRM]\n"
+        f"{tags_line}\n\n"
         "[OBJECTIONS FROM CRM HISTORY]\n"
         f"{objections_text}\n\n"
+        "[REQUIRED OBJECTION TOPICS]\n"
+        f"{', '.join(sorted(required_topics)) if required_topics else 'none'}\n\n"
         "[PRODUCT KNOWLEDGE]\n"
         f"{kb_text}\n\n"
         "[INSTRUCTIONS]\n"
         f"{instructions.strip()}\n"
     )
 
-    return prompt, kb_chunks
+    return prompt, kb_chunks, objections_from_crm, required_topics, all_detected_topics
 
 
 def _call_llm_for_brief(prompt: str) -> dict:
@@ -323,7 +751,8 @@ def generate_physician_brief(
     if row is None:
         raise PhysicianNotFoundError(f"Physician '{physician_name}' not found")
 
-    profile = _row_to_profile(row)
+    base_series = compute_base_score_series(df)
+    profile = _row_to_profile(row, df, base_series)
 
     # Retrieve CRM and KB
     crm_nodes = _retrieve_crm_for_physician(index, profile.name, profile.physician_id)
@@ -331,14 +760,7 @@ def generate_physician_brief(
     # Extract objection snippets from CRM metadata only, so retrieval and the
     # objection handler are grounded on the physician's *actual* concerns
     # (e.g., cost, existing vendor, AI skepticism) rather than generic text.
-    known_objections_list: List[str] = []
-    for node in crm_nodes:
-        try:
-            meta_obj = node.node.metadata.get("objections")  # type: ignore[attr-defined]
-        except Exception:
-            meta_obj = None
-        if meta_obj:
-            known_objections_list.append(str(meta_obj))
+    known_objections_list = _extract_objections_from_crm_nodes(crm_nodes)
     known_objections = "\n".join(known_objections_list)
 
     kb_nodes = _retrieve_kb_chunks(
@@ -348,12 +770,27 @@ def generate_physician_brief(
         known_objections=known_objections,
     )
 
-    prompt, kb_chunks = _build_prompt(profile, crm_nodes, kb_nodes)
+    prompt, kb_chunks, crm_objections, required_topics, all_detected_topics = _build_prompt(
+        profile, crm_nodes, kb_nodes
+    )
     raw = _call_llm_for_brief(prompt)
 
     meeting_script = str(raw.get("meeting_script", "")).strip()
     objection_handler = str(raw.get("objection_handler", "")).strip()
     priority_rationale = str(raw.get("priority_rationale", "")).strip()
+    allowed_topics = required_topics if required_topics else all_detected_topics
+    if not _handler_matches_required_topics(
+        objection_handler,
+        required_topics,
+        allowed_topics=allowed_topics,
+    ):
+        objection_handler = _rewrite_objection_handler_strict(
+            objection_handler=objection_handler,
+            required_topics=required_topics,
+            allowed_topics=allowed_topics,
+            raw_objections=crm_objections,
+            kb_chunks=kb_chunks,
+        )
 
     return BriefResponse(
         physician=profile,
@@ -380,6 +817,7 @@ def process_chat(request: ChatRequest) -> ChatResponse:
     objection_handler = ctx.get("objection_handler", "") or ""
     kb_chunks = ctx.get("retrieved_kb_chunks") or []
     kb_text = "\n\n".join(kb_chunks) if kb_chunks else "No KB chunks provided."
+    allowed_topics = _infer_objection_topics(objection_handler)
 
     system_prompt = f"""You are a sales coach helping a Tempus sales rep prep for a physician meeting.
 You have access to the rep's generated brief and the Tempus knowledge base.
@@ -400,6 +838,7 @@ Rules:
 - Only cite metrics and product names from the knowledge base above
 - Keep responses short and actionable — reps are prepping fast
 - If asked to rewrite the script, keep it personalized to this physician
+- Stay anchored to the objection themes in the objection handler; do not introduce unrelated objection themes.
 - Tone: confident, direct, like a senior rep coaching a junior one
 
 Respond with a JSON object with exactly two keys:
@@ -425,6 +864,17 @@ Respond with JSON only:
     raw = _call_llm_for_brief(full_prompt)
 
     response_text = str(raw.get("response", "")).strip()
+    if allowed_topics and not _infer_objection_topics(response_text).issubset(allowed_topics):
+        # One strict retry before returning to reduce topic drift in coaching.
+        strict_retry_prompt = (
+            f"{full_prompt}\n\n"
+            f"IMPORTANT RETRY RULE: Only discuss these objection topics: {', '.join(sorted(allowed_topics))}. "
+            "If needed, answer by focusing on these topics and do not introduce other concerns."
+        )
+        retried = _call_llm_for_brief(strict_retry_prompt)
+        retry_text = str(retried.get('response', '')).strip()
+        if retry_text:
+            response_text = retry_text
     suggested = raw.get("suggested_followups")
     if isinstance(suggested, list):
         suggested = [str(s).strip() for s in suggested[:3]]
@@ -435,11 +885,16 @@ Respond with JSON only:
 
 
 def get_ranked_providers(city: Optional[str] = None, limit: int = 10) -> List[ProviderRank]:
-    """Return top N providers by priority_score, optionally filtered by city."""
+    """Return top N providers by effective priority (formula + adjustment), optional city filter."""
     df = _load_market_dataframe()
+    if "priority_adjustment" not in df.columns:
+        df["priority_adjustment"] = 0.0
+    base_series = compute_base_score_series(df)
+    df = df.copy()
+    df["_effective"] = df.apply(lambda r: row_effective_priority(r, df, base_series), axis=1)
     if city:
         df = df[df["city"].str.lower() == city.lower()]
-    df = df.sort_values("priority_score", ascending=False).head(limit)
+    df = df.sort_values("_effective", ascending=False).head(limit)
 
     providers: List[ProviderRank] = []
     for rank, (_, row) in enumerate(df.iterrows(), start=1):
@@ -450,7 +905,7 @@ def get_ranked_providers(city: Optional[str] = None, limit: int = 10) -> List[Pr
                 institution=str(row["institution"]),
                 specialty=str(row["specialty"]),
                 estimated_annual_patients=int(row["estimated_annual_patients"]),
-                priority_score=float(row["priority_score"]),
+                priority_score=float(row["_effective"]),
                 primary_cancer_focus=str(row["primary_cancer_focus"]),
                 current_tempus_user=bool(row["current_tempus_user"]),
                 last_contact_date=None
