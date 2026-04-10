@@ -12,7 +12,6 @@ from dotenv import load_dotenv
 
 from models import OutcomeLog, OutcomeRequest, OutcomeResponse
 from rag import (
-    _call_llm_for_brief,
     _find_physician_row,
     _get_chroma_persist_dir,
     _init_vector_index,
@@ -164,24 +163,27 @@ def _generate_suggested_next_action(
     next_step: str,
     cancer_focus: str,
     new_score: float,
+    score_delta: float,
 ) -> str:
-    prompt = f"""You are a Tempus sales coach. Given this meeting outcome for {physician_name}:
-- Result: {outcome}
-- Main concern: {main_concern}
-- Rep's next step: {next_step}
-- Their cancer focus: {cancer_focus}
-- Current priority score: {new_score}
+    """Generate score-aware coaching prompt anchored to user-entered next step."""
+    cleaned = (next_step or "").strip()
+    if not cleaned:
+        cleaned = (
+            f"Follow up with {physician_name} on {main_concern} in {cancer_focus} "
+            "and confirm a concrete next meeting action."
+        )
 
-Suggest one specific, actionable next step the rep should take in the next 48 hours.
-One sentence. Be specific — reference actual Tempus assets (e.g. "Send the xT NSCLC de-identified report with TMB/PD-L1 highlighted") not generic advice.
+    if score_delta > 0:
+        prefix = "Score increased — press momentum: "
+    elif score_delta < 0:
+        prefix = "Score decreased — recovery plan: "
+    else:
+        prefix = "Score unchanged — keep the account moving: "
 
-Respond with JSON only: {{"response": "your one-sentence suggestion"}}"""
-
-    try:
-        raw = _call_llm_for_brief(prompt)
-        return str(raw.get("response", next_step)).strip()[:500]
-    except Exception:
-        return next_step
+    return (
+        f"{prefix}{cleaned} "
+        f"(Outcome: {outcome}; concern: {main_concern}; current priority: {new_score:.1f})."
+    )[:500]
 
 
 def log_outcome(request: OutcomeRequest) -> OutcomeResponse:
@@ -214,6 +216,7 @@ def log_outcome(request: OutcomeRequest) -> OutcomeResponse:
         next_step=request.next_step,
         cancer_focus=cancer,
         new_score=new_total,
+        score_delta=score_delta,
     )
 
     return OutcomeResponse(
